@@ -1,37 +1,73 @@
+# --- NEU: MKLDNN deaktivieren (wichtig für ARM / Raspberry Pi) ---
+import torch
+torch.backends.mkldnn.enabled = False
+# Erklärung:
+# → Verhindert "Illegal instruction" Fehler bei PyTorch auf ARM/Emulation
+
+
 import numpy as np
 from ultralytics import YOLO
 
+# --- NEU: Globaler Cache für Modelle ---
+_MODEL_CACHE = {}
+# Erklärung:
+# → Speichert bereits geladene Modelle im RAM
+# → Verhindert, dass das Modell bei jedem Request neu geladen wird
+
+
+def get_yolo_model(model_path: str):
+    """
+    Lädt das YOLO-Modell nur einmal und cached es.
+    """
+    if model_path not in _MODEL_CACHE:
+        
+        print(f"[INIT] Lade YOLO-Modell: {model_path}", flush=True)
+        _MODEL_CACHE[model_path] = YOLO(model_path)
+        print("[INIT] YOLO-Modell geladen", flush=True)
+    else:
+        print("[CACHE] YOLO-Modell aus Cache verwendet", flush=True)
+
+    return _MODEL_CACHE[model_path]
+
+
 def detect_platte(image_bgr, model_path: str, conf: float = 0.25):
     """
-    Funktion 1:
-    - Ruft das YOLOv8-seg Modell auf
-    - Wenn 'platte' erkannt wird: liefert dict mit Polygon + Meta
-    - Sonst: None
-
-    Output dict enthält:
-      {
-        "poly": np.ndarray shape (N,2) in Pixelkoordinaten,
-        "conf": float|None,
-        "best_i": int
-      }
+    Erkennt die Platte im Bild und gibt die beste Maske zurück.
     """
-    model = YOLO(model_path)
-    r = model.predict(source=image_bgr, conf=conf, verbose=False)[0]
 
-    # Segmentation mit Polygonen: r.masks.xy ist eine Liste (pro Detektion ein Polygon)
+    print("[STEP] detect_platte gestartet", flush=True)
+
+    # --- GEÄNDERT: Modell wird jetzt aus Cache geholt ---
+    model = get_yolo_model(model_path)
+
+    # --- GEÄNDERT: kleinere Bildgröße für bessere Performance ---
+    print("[STEP] YOLO predict startet", flush=True)
+    r = model.predict(
+        source=image_bgr,
+        conf=conf,
+        imgsz=640,   # wichtig: reduziert Rechenzeit
+        verbose=True
+    )[0]
+    print("[STEP] YOLO predict fertig", flush=True)
+
+    # --- unverändert: keine Maske gefunden ---
     if r.masks is None or r.masks.xy is None or len(r.masks.xy) == 0:
+        print("[WARN] Keine Platte erkannt", flush=True)
         return None
 
-    # Beste Detektion: höchste Confidence (falls vorhanden)
+    # --- beste Maske auswählen ---
     best_i = 0
     best_conf = None
+
     if r.boxes is not None and len(r.boxes) > 0:
         confs = r.boxes.conf.detach().cpu().numpy()
         if confs.size:
             best_i = int(np.argmax(confs))
             best_conf = float(confs[best_i])
 
-    poly = r.masks.xy[best_i]  # (N,2) float Pixelkoordinaten
+    poly = r.masks.xy[best_i]
+
+    print(f"[INFO] Beste Maske Index: {best_i}, Confidence: {best_conf}", flush=True)
 
     return {
         "poly": poly,
