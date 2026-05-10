@@ -22,7 +22,7 @@ def get_yolo_model(model_path: str):
     if model_path not in _MODEL_CACHE:
         
         print(f"[INIT] Lade YOLO-Modell: {model_path}", flush=True)
-        _MODEL_CACHE[model_path] = YOLO(model_path)
+        _MODEL_CACHE[model_path] = YOLO(model_path, task="segment")
         print("[INIT] YOLO-Modell geladen", flush=True)
     else:
         print("[CACHE] YOLO-Modell aus Cache verwendet", flush=True)
@@ -45,7 +45,7 @@ def detect_platte(image_bgr, model_path: str, conf: float = 0.25):
     r = model.predict(
         source=image_bgr,
         conf=conf,
-        imgsz=640,   # wichtig: reduziert Rechenzeit
+        imgsz=320,   # wichtig: reduziert Rechenzeit
         verbose=True
     )[0]
     print("[STEP] YOLO predict fertig", flush=True)

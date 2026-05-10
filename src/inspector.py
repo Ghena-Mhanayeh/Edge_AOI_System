@@ -20,7 +20,7 @@ def inspect_image(image_path: str) -> dict:
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(script_dir)
 
-    model_path = os.path.join(project_root, "models", "best.pt")
+    model_path = os.path.join(project_root, "models", "best_ncnn_model")
     config_path = os.path.join(project_root, "config", "config.yaml")
     output_dir = os.path.join(project_root, "output")
     os.makedirs(output_dir, exist_ok=True)
